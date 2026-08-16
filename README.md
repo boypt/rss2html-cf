@@ -1,66 +1,77 @@
 # rss2html-cf
 
-将 RSS/Atom feed 转换成简单 HTML 页面的 Cloudflare Worker。零依赖，抓取 → 解析 → 渲染一条龙，通过 URL 参数控制输出。
+A Cloudflare Worker that converts RSS/Atom feeds into a simple HTML page. Zero dependencies — fetch, parse and render in one go, controlled entirely by URL parameters.
 
-## 特性
+> **English** | [中文](README.zh.md)
 
-- 支持 **RSS 2.0 / RSS 1.0 / Atom** 三种格式
-- `url` 参数指定 feed 地址，`limit` 参数控制显示条数
-- 自动处理 CDATA、实体转义、相对链接补全
-- 输出防 XSS（标题转义、剥离描述中的 `<script>`）
-- 零依赖，`wrangler` 即可部署
+## Features
 
-## 一键部署
+- Supports **RSS 2.0 / RSS 1.0 / Atom**
+- `url` parameter points to the feed, `limit` parameter controls how many entries are shown
+- Handles CDATA, entity decoding, and relative link resolution automatically
+- XSS-safe output (escaped titles, `<script>` stripped from descriptions)
+- Zero dependencies, deploy with `wrangler` only
+
+## One-click deploy
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/boypt/rss2html-cf)
 
-点击上方按钮，按提示授权 GitHub 仓库并部署到 Cloudflare，完成后即可获得你的专属地址。
+Click the button, authorize your GitHub repo, and Cloudflare deploys the worker for you.
 
-## 手动部署
+## Deploy from the web editor (no Git repo needed)
+
+This project has zero dependencies — just paste the code into Cloudflare's web editor:
+
+1. Sign in to the [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create** → **Worker** → **Deploy**
+2. Open your new Worker → **Edit code** (Code Editor)
+3. Clear the default code and paste the full contents of [`src/index.js`](src/index.js)
+4. Click **Deploy** — your worker is live at `https://your-worker-name.your-subdomain.workers.dev`
+
+## Manual deploy (CLI)
 
 ```bash
-npm install          # 安装 wrangler
-npm run deploy       # 部署到 Cloudflare（首次需 npx wrangler login）
+npm install          # install wrangler
+npm run deploy       # deploy to Cloudflare (needs npx wrangler login first time)
 ```
 
-## 本地开发
+## Local development
 
 ```bash
 npm install
-npm run dev          # 默认 http://localhost:8787
+npm run dev          # default http://localhost:8787
 ```
 
-## 使用方式
+## Usage
 
 ```
 GET /?url=https://example.com/feed.xml&limit=10
 ```
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `url` | 是 | feed 地址（http/https） |
-| `limit` | 否 | 显示的条目数，默认 10，最大 100 |
+| Param | Required | Description |
+|-------|----------|-------------|
+| `url` | yes | feed address (http/https) |
+| `limit` | no | number of entries to show, default 10, max 100 |
 
-示例：
+Examples:
 
-- `https://你的worker地址/?url=https://hnrss.org/frontpage&limit=5`
-- `https://你的worker地址/?url=https://feeds.bbci.co.uk/news/rss.xml`
+- `https://your-worker-url/?url=https://hnrss.org/frontpage&limit=5`
+- `https://your-worker-url/?url=https://feeds.bbci.co.uk/news/rss.xml`
 
-## 项目结构
+## Project structure
 
 ```
-├── src/index.js      # worker 全部逻辑：抓取、解析、渲染
-├── wrangler.toml     # Cloudflare Worker 配置
-└── package.json      # dev / deploy 脚本
+├── src/index.js      # all worker logic: fetch, parse, render
+├── wrangler.toml     # Cloudflare Worker configuration
+└── package.json      # dev / deploy scripts
 ```
 
-## 错误响应
+## Error responses
 
-| 状态码 | 场景 |
-|--------|------|
-| 400 | 缺少或非法 `url` 参数 |
-| 404 | feed 无条目 / 路径不存在 |
-| 502 | 抓取失败、网络错误或解析失败 |
+| Status | Scenario |
+|--------|----------|
+| 400 | missing or invalid `url` param |
+| 404 | feed has no entries / path not found |
+| 502 | fetch failure, network error, or parse failure |
 
 ## License
 
