@@ -3,8 +3,9 @@
  * it as a simple HTML page. Zero dependencies.
  *
  * Usage:
+ *   GET /                    — landing page
  *   GET /?url=https://example.com/feed.xml&limit=10
- *     url    (required) address of the feed
+ *     url    (optional) address of the feed
  *     limit  (optional) how many entries to show (default 10, max 100)
  */
 
@@ -18,12 +19,17 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
 
-    const feedUrl = reqUrl.searchParams.get("url") || "";
+    const feedUrl = reqUrl.searchParams.get("url");
+    if (!feedUrl) {
+      return new Response(landingPage(), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
     if (!/^https?:\/\//i.test(feedUrl)) {
       return errorPage(
         400,
-        "Missing or invalid 'url' parameter",
-        'Provide the feed address, e.g. <code>?url=https://example.com/feed.xml</code>.'
+        "Invalid 'url' parameter",
+        'Provide a valid feed address, e.g. <code>?url=https://example.com/feed.xml</code>.'
       );
     }
 
@@ -187,11 +193,11 @@ function renderPage(feed, items) {
     .join("\n");
 
   return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(feed.title)}</title>
+<title>rss2html: ${escapeHtml(feed.title)}</title>
 <style>
   body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 720px; margin: 0 auto; padding: 1rem; line-height: 1.6; color: #222; }
   header h1 { font-size: 1.4rem; margin: 0.5rem 0; }
@@ -213,13 +219,33 @@ function renderPage(feed, items) {
 </html>`;
 }
 
-function errorPage(status, heading, detail) {
-  const body = `<!DOCTYPE html>
-<html lang="zh-CN">
+function landingPage() {
+  return `<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${status} — ${escapeHtml(heading)}</title>
+<title>rss2html</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 1rem; line-height: 1.6; }
+  code { background: #f4f4f4; padding: .1em .3em; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>rss2html</h1>
+<p>Convert any RSS/Atom feed into a clean HTML page.</p>
+<p>Usage: <code>?url=&lt;feed-address&gt;&amp;limit=&lt;N&gt;</code></p>
+</body>
+</html>`;
+}
+
+function errorPage(status, heading, detail) {
+  const body = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rss2html: ${status} — ${escapeHtml(heading)}</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 1rem; line-height: 1.6; }
   code { background: #f4f4f4; padding: .1em .3em; border-radius: 4px; }
