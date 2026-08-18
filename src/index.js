@@ -82,7 +82,7 @@ function parseRss(xml, feedUrl) {
   const channel = matchFirst(xml, /<channel[^>]*>([\s\S]*?)<\/channel>/i);
   if (!channel) throw new Error("No <channel> element found");
 
-  const base = cleanText(matchFirst(channel, /<link[^>]*>([\s\S]*?)<\/link>/i)) || feedUrl;
+  const base = absoluteLink(cleanText(matchFirst(channel, /<link[^>]*>([\s\S]*?)<\/link>/i)), feedUrl) || feedUrl;
   const items = [];
   const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/gi;
   let m;
@@ -103,7 +103,7 @@ function parseRss(xml, feedUrl) {
 }
 
 function parseAtom(xml, feedUrl) {
-  const base = cleanText(matchFirst(xml, /<link\b[^>]*href=["']([^"']+)["']/i)) || feedUrl;
+  const base = absoluteLink(cleanText(matchFirst(xml, /<link\b[^>]*href=["']([^"']+)["']/i)), feedUrl) || feedUrl;
   const items = [];
   const entryRe = /<entry[^>]*>([\s\S]*?)<\/entry>/gi;
   let m;
