@@ -92,7 +92,7 @@ function parseRss(xml, feedUrl) {
       title: cleanText(matchFirst(body, /<title[^>]*>([\s\S]*?)<\/title>/i)),
       link: absoluteLink(cleanText(matchFirst(body, /<link[^>]*>([\s\S]*?)<\/link>/i)), base),
       date: cleanText(matchFirst(body, /<(?:pubDate|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|dc:date)>/i)),
-      description: cleanHtml(matchFirst(body, /<description[^>]*>([\s\S]*?)<\/description>/i)),
+      description: resolveRelativeUrls(cleanHtml(matchFirst(body, /<description[^>]*>([\s\S]*?)<\/description>/i)), base),
     });
   }
   return {
@@ -115,9 +115,9 @@ function parseAtom(xml, feedUrl) {
       date: cleanText(
         matchFirst(body, /<(?:updated|published)[^>]*>([\s\S]*?)<\/(?:updated|published)>/i)
       ),
-      description: cleanHtml(
+      description: resolveRelativeUrls(cleanHtml(
         matchFirst(body, /<(?:summary|content)[^>]*>([\s\S]*?)<\/(?:summary|content)>/i)
-      ),
+      ), base),
     });
   }
   return {
@@ -164,6 +164,15 @@ function absoluteLink(link, base) {
   } catch {
     return link;
   }
+}
+
+/** Resolve relative href/src URLs in HTML content to absolute URLs. */
+function resolveRelativeUrls(html, base) {
+  if (!html || !base) return html;
+  return html.replace(
+    /\b(href|src)=["']([^"']+)["']/gi,
+    (_, attr, url) => `${attr}="${absoluteLink(url, base)}"`
+  );
 }
 
 const ESCAPE = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
