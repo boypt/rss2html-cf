@@ -53,7 +53,7 @@ export default {
     const xml = await response.text();
     let feed;
     try {
-      feed = parseFeed(xml);
+      feed = parseFeed(xml, feedUrl);
     } catch (err) {
       return errorPage(502, "Failed to parse the feed", escapeHtml(err.message));
     }
@@ -71,18 +71,18 @@ export default {
 /* Feed parsing                                                        */
 /* ------------------------------------------------------------------ */
 
-function parseFeed(xml) {
+function parseFeed(xml, feedUrl) {
   if (typeof xml !== "string" || xml.trim() === "") throw new Error("Empty response body");
-  if (/<feed[\s>]/i.test(xml) && !/<rss[\s>]/i.test(xml)) return parseAtom(xml);
-  if (/<rss[\s>]/i.test(xml) || /<rdf:RDF[\s>]/i.test(xml)) return parseRss(xml);
+  if (/<feed[\s>]/i.test(xml) && !/<rss[\s>]/i.test(xml)) return parseAtom(xml, feedUrl);
+  if (/<rss[\s>]/i.test(xml) || /<rdf:RDF[\s>]/i.test(xml)) return parseRss(xml, feedUrl);
   throw new Error("Unrecognized feed format (expected RSS or Atom)");
 }
 
-function parseRss(xml) {
+function parseRss(xml, feedUrl) {
   const channel = matchFirst(xml, /<channel[^>]*>([\s\S]*?)<\/channel>/i);
   if (!channel) throw new Error("No <channel> element found");
 
-  const base = cleanText(matchFirst(channel, /<link[^>]*>([\s\S]*?)<\/link>/i)) || undefined;
+  const base = cleanText(matchFirst(channel, /<link[^>]*>([\s\S]*?)<\/link>/i)) || feedUrl;
   const items = [];
   const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/gi;
   let m;
@@ -97,13 +97,13 @@ function parseRss(xml) {
   }
   return {
     title: cleanText(matchFirst(channel, /<title[^>]*>([\s\S]*?)<\/title>/i)) || "Untitled feed",
-    link: absoluteLink(cleanText(matchFirst(channel, /<link[^>]*>([\s\S]*?)<\/link>/i)), undefined),
+    link: absoluteLink(cleanText(matchFirst(channel, /<link[^>]*>([\s\S]*?)<\/link>/i)), feedUrl),
     items,
   };
 }
 
-function parseAtom(xml) {
-  const base = cleanText(matchFirst(xml, /<link\b[^>]*href=["']([^"']+)["']/i)) || undefined;
+function parseAtom(xml, feedUrl) {
+  const base = cleanText(matchFirst(xml, /<link\b[^>]*href=["']([^"']+)["']/i)) || feedUrl;
   const items = [];
   const entryRe = /<entry[^>]*>([\s\S]*?)<\/entry>/gi;
   let m;
@@ -122,7 +122,7 @@ function parseAtom(xml) {
   }
   return {
     title: cleanText(matchFirst(xml, /<title[^>]*>([\s\S]*?)<\/title>/i)) || "Untitled feed",
-    link: absoluteLink(matchFirst(xml, /<link\b[^>]*href=["']([^"']+)["']/i), undefined),
+    link: absoluteLink(matchFirst(xml, /<link\b[^>]*href=["']([^"']+)["']/i), feedUrl),
     items,
   };
 }
