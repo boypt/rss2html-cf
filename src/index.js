@@ -7,10 +7,13 @@
  *   GET /?url=https://example.com/feed.xml&limit=10
  *     url    (optional) address of the feed
  *     limit  (optional) how many entries to show (default 10, max 100)
+ *     md     (optional) md=1 to render Markdown text/plain instead of HTML
  */
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
+const HTML_CT = "text/html; charset=utf-8";
+const MD_CT = "text/markdown; charset=utf-8";
 
 export default {
   async fetch(request) {
@@ -19,17 +22,19 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
 
+    const md = /^(1|true|yes)$/i.test(reqUrl.searchParams.get("md") || "");
+
     const feedUrl = reqUrl.searchParams.get("url");
     if (!feedUrl) {
-      return new Response(landingPage(), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+      const body = md ? landingMarkdown() : landingPage();
+      return new Response(body, { headers: { "Content-Type": md ? MD_CT : HTML_CT } });
     }
     if (!/^https?:\/\//i.test(feedUrl)) {
       return errorPage(
         400,
         "Invalid 'url' parameter",
-        'Provide a valid feed address, e.g. <code>?url=https://example.com/feed.xml</code>.'
+        'Provide a valid feed address, e.g. <code>?url=https://example.com/feed.xml</code>.',
+        md
       );
     }
 
@@ -44,10 +49,10 @@ export default {
         cf: { cacheTtl: 300, cacheEverything: true },
       });
     } catch (err) {
-      return errorPage(502, "Failed to fetch the feed", escapeHtml(String((err && err.message) || err)));
+      return errorPage(502, "Failed to fetch the feed", escapeHtml(String((err && err.message) || err)), md);
     }
     if (!response.ok) {
-      return errorPage(502, "Feed request failed", `The feed returned HTTP ${response.status} ${response.statusText}.`);
+      return errorPage(502, "Feed request failed", `The feed returned HTTP ${response.status} ${response.statusText}.`, md);
     }
 
     const xml = await response.text();
@@ -55,14 +60,15 @@ export default {
     try {
       feed = parseFeed(xml, feedUrl);
     } catch (err) {
-      return errorPage(502, "Failed to parse the feed", escapeHtml(err.message));
+      return errorPage(502, "Failed to parse the feed", escapeHtml(err.message), md);
     }
     if (feed.items.length === 0) {
-      return errorPage(404, "No entries in feed", "The feed was read, but it contains no items.");
+      return errorPage(404, "No entries in feed", "The feed was read, but it contains no items.", md);
     }
 
-    return new Response(renderPage(feed, feed.items.slice(0, limit)), {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
+    const items = feed.items.slice(0, limit);
+    return new Response(md ? renderMarkdown(feed, items) : renderPage(feed, items), {
+      headers: { "Content-Type": md ? MD_CT : HTML_CT },
     });
   },
 };
@@ -180,6 +186,66 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ESCAPE[c]);
 }
 
+/** Collapse all whitespace runs into single spaces — for titles and dates. */
+function oneLine(s) {
+  return String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+}
+
+/* ------------------------------------------------------------------ */
+/* Markdown rendering                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Wrap a URL in <…> when plain form would break the Markdown link syntax. */
+function mdUrl(url) {
+  const u = String(url == null ? "" : url).trim();
+  return /[\s()]/.test(u) ? `<${u}>` : u;
+}
+
+/**
+ * Convert the pre-cleaned description HTML into Markdown-ish plain text:
+ * links/images/lists/headings survive, every other tag is dropped.
+ * Entities were already decoded by cleanHtml, so they are not decoded again.
+ */
+function htmlToMarkdown(html) {
+  if (!html) return "";
+  const quote = (block) => `\n\n${block.split("\n").map((l) => `> ${l}`).join("\n")}\n\n`;
+  return html
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      (_, url, label) => (label.trim() ? `[${label}](${mdUrl(url)})` : mdUrl(url)))
+    .replace(/<img\b[^>]*src=["']([^"']+)["'][^>]*>/gi, (_, src) => `![](${mdUrl(src)})`)
+    .replace(/<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, "**$1**")
+    .replace(/<(?:em|i)\b[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, "*$1*")
+    .replace(/<blockquote\b[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, t) => quote(t.trim()))
+    .replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, t) => `\n- ${t.trim()}\n`)
+    .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, n, t) => `\n\n${"#".repeat(Number(n))} ${t.trim()}\n\n`)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|tr|section|article|header|footer|ul|ol|dl|dd|dt|table|thead|tbody)>/gi, "\n\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function renderMarkdown(feed, items) {
+  const out = [`# ${oneLine(feed.title) || "Untitled feed"}`, ""];
+  if (feed.link) out.push(`<${mdUrl(feed.link)}>`, "");
+
+  items.forEach((it, i) => {
+    out.push(`## ${i + 1}. ${oneLine(it.title) || `(untitled #${i + 1})`}`, "");
+    const meta = [];
+    if (it.link) meta.push(`- URL: ${mdUrl(it.link)}`);
+    if (it.date) meta.push(`- Date: ${oneLine(it.date)}`);
+    if (meta.length) out.push(meta.join("\n"), "");
+    const body = htmlToMarkdown(it.description);
+    if (body) out.push(body, "");
+    out.push("---", "");
+  });
+
+  out.push(`_${items.length} entries · generated by rss2html_`, "");
+  return out.join("\n");
+}
+
 /* ------------------------------------------------------------------ */
 /* Rendering                                                           */
 /* ------------------------------------------------------------------ */
@@ -248,7 +314,32 @@ function landingPage() {
 </html>`;
 }
 
-function errorPage(status, heading, detail) {
+function landingMarkdown() {
+  return `# rss2html
+
+Convert any RSS/Atom feed into a clean HTML page.
+
+## Usage
+
+    ?url=<feed-address>&limit=<N>&md=1
+
+- \`url\` — feed address, required, must be \`http(s)://\`
+- \`limit\` — how many entries to show, default 10, max 100
+- \`md\` — \`md=1\` returns Markdown text instead of HTML
+
+## Examples
+
+    https://your-worker-url/?url=https://hnrss.org/frontpage
+    https://your-worker-url/?url=https://hnrss.org/frontpage&limit=5
+    https://your-worker-url/?url=https://hnrss.org/frontpage&md=1
+`;
+}
+
+function errorPage(status, heading, detail, md) {
+  if (md) {
+    const body = `# ${status} — ${oneLine(heading)}\n\n${htmlToMarkdown(detail)}\n\n[← back](/)\n`;
+    return new Response(body, { status, headers: { "Content-Type": MD_CT } });
+  }
   const body = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -266,5 +357,5 @@ function errorPage(status, heading, detail) {
 <p><a href="/">← back</a></p>
 </body>
 </html>`;
-  return new Response(body, { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(body, { status, headers: { "Content-Type": HTML_CT } });
 }

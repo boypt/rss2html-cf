@@ -13,10 +13,20 @@ npm run deploy       # deploy (first time needs npx wrangler login)
 ## Architecture
 
 - Single-file worker: `src/index.js` (exports default `fetch` handler), no external deps, no KV/D1
-- Request params: `?url=<feed>&limit=<N>`
-  - `url` required, only `http(s)://` accepted, otherwise 400
+- Request params: `?url=<feed>&limit=<N>&md=1`
+  - `url` required, only `http(s)://` accepted, otherwise 400; missing `url` returns the landing page
   - `limit` optional, default 10, max 100, invalid values (`abc`/`0`/negative) fall back to default
+  - `md` optional, `1`/`true`/`yes` switches every response (landing, feed, error) to `text/markdown`
 - Fetch uses `cf: { cacheTtl: 300, cacheEverything: true }` and a custom User-Agent
+  - This caches the **upstream feed** for 5 min; `wrangler dev` does not honour `cf.cache*`, so local is always fresh
+  - Some origins (e.g. php.net behind BunnyCDN) send `max-age=2592000` and cache per region, so production can stay stale for weeks regardless of `cacheTtl`
+
+## Output modes
+
+- HTML (default): `renderPage` — titles `escapeHtml`'d, descriptions inserted as cleaned HTML
+- Markdown (`md=1`): `renderMarkdown` + `htmlToMarkdown` — `#` feed title, `## n. title` per entry,
+  `- URL:` / `- Date:` meta, description converted (a/img/b/strong/em/li/blockquote/h1-h6 kept, rest stripped)
+  - No Markdown escaping of text (only whitespace normalisation via `oneLine`) — keep it that way, output is meant to be read
 
 ## Parser (regex-based, no XML library)
 
@@ -43,7 +53,11 @@ npm run deploy       # deploy (first time needs npx wrangler login)
 
 ## Testing
 
-No test framework. Smoke test script at `/tmp/opencode/rss2html-test.mjs` (mocks global fetch, 22 assertions), or run dev server locally and verify with curl.
+No test framework. Smoke test script at `/tmp/opencode/rss2html-test.mjs` (mocks global fetch, 61 assertions), or run dev server locally and verify with curl.
+
+```bash
+node /tmp/opencode/rss2html-test.mjs
+```
 
 ## Three deploy paths (each has its own README section)
 

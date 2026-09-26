@@ -45,17 +45,27 @@ npm run dev          # default http://localhost:8787
 
 ```
 GET /?url=https://example.com/feed.xml&limit=10
+GET /?url=https://example.com/feed.xml&md=1
 ```
 
 | Param | Required | Description |
 |-------|----------|-------------|
 | `url` | yes | feed address (http/https) |
 | `limit` | no | number of entries to show, default 10, max 100 |
+| `md` | no | `md=1` returns Markdown (`text/markdown`) instead of HTML |
 
 Examples:
 
 - `https://your-worker-url/?url=https://hnrss.org/frontpage&limit=5`
 - `https://your-worker-url/?url=https://feeds.bbci.co.uk/news/rss.xml`
+- `https://your-worker-url/?url=https://hnrss.org/frontpage&md=1` — plain Markdown text, handy for LLMs and `curl`
+
+### Markdown mode
+
+`md=1` renders the same entries as Markdown: feed title as `#`, one `## n. title`
+section per entry, `- URL:` / `- Date:` metadata, and the description converted
+from HTML (links, images, lists, headings and blockquotes survive; every other
+tag is dropped). The landing page and the error pages follow the same switch.
 
 ## Project structure
 

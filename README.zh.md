@@ -45,17 +45,26 @@ npm run dev          # 默认 http://localhost:8787
 
 ```
 GET /?url=https://example.com/feed.xml&limit=10
+GET /?url=https://example.com/feed.xml&md=1
 ```
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `url` | 是 | feed 地址（http/https） |
 | `limit` | 否 | 显示的条目数，默认 10，最大 100 |
+| `md` | 否 | `md=1` 输出 Markdown（`text/markdown`）而不是 HTML |
 
 示例：
 
 - `https://你的worker地址/?url=https://hnrss.org/frontpage&limit=5`
 - `https://你的worker地址/?url=https://feeds.bbci.co.uk/news/rss.xml`
+- `https://你的worker地址/?url=https://hnrss.org/frontpage&md=1` — 纯 Markdown 文本，方便喂给 LLM 或 `curl`
+
+### Markdown 模式
+
+`md=1` 用 Markdown 输出同样的条目：feed 标题为 `#`，每条一个 `## n. 标题` 小节，
+下面是 `- URL:` / `- Date:` 元信息，description 从 HTML 转换而来（链接、图片、列表、
+标题、引用会保留，其余标签全部去掉）。首页和错误页也遵循同一个开关。
 
 ## 项目结构
 
